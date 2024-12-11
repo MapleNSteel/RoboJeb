@@ -1,0 +1,6 @@
+*.pdf
+# Ignore Python bytecode files
+__pycache__/
+
+# Ignore MacOS system files
+.DS_Store
