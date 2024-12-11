@@ -57,14 +57,14 @@ class Vessel:
         return [part.engine for part in self.parts.all if part.engine and part.engine.active]
     
     def GetActiveFuelConsumption(self):
-        body = self.vessel.orbit.body
-        gravitational_parameter = body.gravitational_parameter  # GM
-        radius = self.vessel.orbit.radius
-        gravity = gravitational_parameter / radius**2
-
-        print(f"gravity: {gravity}")
+        gravity = self.GetGravity()
 
         return sum([active_engine.thrust / (active_engine.specific_impulse*gravity) for active_engine in self.GetActiveEngines()])
+    
+    def GetDecoupleStageFuelParts(self, decouple_stage):
+        resources_in_current_stage = self.vessel.resources_in_decouple_stage(decouple_stage)
+
+        return [resource.part for resource in resources_in_current_stage]
     
     def GetActiveFuelParts(self):
         active_fuel_parts = set()  # Use a set to avoid duplicates
@@ -91,6 +91,14 @@ class Vessel:
     
     def GetSurfaceReferenceFrame(self):
         return self.vessel.surface_reference_frame
+    
+    def GetGravity(self):
+        body = self.vessel.orbit.body
+        gravitational_parameter = body.gravitational_parameter  # GM
+        radius = self.vessel.orbit.radius
+        gravity = gravitational_parameter / radius**2
+
+        return gravity
     
     # Control Setters
     def SetThrottleControl(self, throttle_command):
