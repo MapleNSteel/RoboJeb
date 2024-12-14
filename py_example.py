@@ -7,6 +7,7 @@ import time
 
 from Controllers.HoverControllers import HoverPIDController
 from Dynamics.Integrators import RK4
+from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamics, RotationalParams, RotationalState
 from KRPCInterface import KRPCInterface
 
 class MinimalPublisher(Node):
@@ -20,8 +21,12 @@ class MinimalPublisher(Node):
         self.publisher_.publish(msg)
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
-def QuaternionToList(quaternion):
-    return [quaternion.w, quaternion.x, quaternion.y, quaternion.z]
+def QuaternionToList(quat):
+    return [quat.w, quat.x, quat.y, quat.z]
+
+def RotationalStateToList(estimated_attitude):
+    quat = estimated_attitude.quaternion
+    return QuaternionToList(quat)
 
 def NormalizeQuaternion(q):
     return q / np.linalg.norm(q)
@@ -32,14 +37,15 @@ def QuaternionDerivative(q, angular_velocity):
     quat_derivative = 0.5 * q * omega_quat
     return np.array([quat_derivative.w, quat_derivative.x, quat_derivative.y, quat_derivative.z])
 
-def UpdateRotation(q, angular_velocity, inertia_tensor, inertia_tensor_derivative, angular_momentum, tau, dt):
+def UpdateRotation(q, angular_velocity, inertia_tensor, inertia_tensor_derivative, tau, dt):
+    angular_momentum = lambda angular_velocity: inertia_tensor @ angular_velocity
+
+    angular_acceleration = lambda state, control: np.linalg.inv(inertia_tensor) @ (control - inertia_tensor_derivative @ state[4:] - np.cross(state[4:], angular_momentum(state[4:])))
+    quaternion_derivative = lambda state, control: np.hstack([QuaternionDerivative(np.quaternion(*state[0:4]), state[4:]), angular_acceleration(state, control)])
+
     q = np.array(QuaternionToList(q)).reshape(4,)
-
     state = np.hstack([q, angular_velocity])
-
-    angular_acceleration = lambda state: np.linalg.inv(inertia_tensor) @ (tau - inertia_tensor_derivative @ state[4:] - np.cross(state[4:], angular_momentum))
-    quaternion_derivative = lambda state: np.hstack([QuaternionDerivative(np.quaternion(*state[0:4]), state[4:]), angular_acceleration(state)])
-    q_new = RK4.Integrate(state, quaternion_derivative, dt)
+    q_new = RK4.Integrate(state, tau, quaternion_derivative, dt)
 
     return np.quaternion(*NormalizeQuaternion(q_new[0:4]))
 
@@ -64,10 +70,17 @@ def main():
 
     start = time.time()
     initial_attitude =  active_vessel.GetCOMRotation()
+    initial_angular_velocity_body_frame = active_vessel.GetCOMAngularVelocityBodyFrame()
+
     estimated_attitude = initial_attitude
 
-    minimal_publisher_2.PublisherCallback(QuaternionToList(initial_attitude))
-    minimal_publisher_4.PublisherCallback(QuaternionToList(estimated_attitude))
+    initial_rotation_state = RotationalState(initial_attitude, initial_angular_velocity_body_frame)
+    estimated_rotational_state = initial_rotation_state
+
+    minimal_publisher_2.PublisherCallback(RotationalStateToList(initial_rotation_state))
+    minimal_publisher_4.PublisherCallback(RotationalStateToList(estimated_rotational_state))
+
+    rotational_dynamics = RotationalDynamics(RK4.Integrate)
 
     while True:
         if active_vessel.GetAvailableThrust() == 0:
@@ -88,17 +101,20 @@ def main():
         inertia_tensor = active_vessel.GetInertiaTensor()
         inertia_tensor_derivative = active_vessel.GetInertiaTensorDerivative()
 
-        angular_momentum = inertia_tensor @ angular_velocity_body_frame
-
         start = current_time
 
         # print(f"dt: {dt}")
 
-        estimated_attitude = UpdateRotation(estimated_attitude, angular_velocity_body_frame, inertia_tensor, inertia_tensor_derivative, angular_momentum, tau, dt)
+        estimated_attitude = UpdateRotation(estimated_attitude, angular_velocity_body_frame, inertia_tensor, inertia_tensor_derivative, tau, dt)
+        rotational_state = RotationalState(estimated_rotational_state.quaternion, angular_velocity_body_frame)
+        rotational_params = RotationalParams(inertia_tensor, inertia_tensor_derivative)
+        estimated_rotational_state = rotational_dynamics.Update(rotational_state, tau, rotational_params, dt)
+
+        rotational_state = RotationalState(attitude, angular_velocity_body_frame)
 
         # print(f"attitude: {attitude}")
         # print(f"angular_velocity: {angular_velocity_body_frame}")
-        # print(f"estimated_attitude: {estimated_attitude}")
+        # print(f"estimated_rotational_state.quaternion: {estimated_rotational_state.quaternion}")
 
         # print(attitude)
 
@@ -108,8 +124,8 @@ def main():
         # exit(0)
 
         # minimal_publisher_1.PublisherCallback([altitude, radial_velocity, altitude_error, throttle_command])
-        minimal_publisher_2.PublisherCallback(QuaternionToList(attitude))
-        minimal_publisher_4.PublisherCallback(QuaternionToList(estimated_attitude))
+        minimal_publisher_2.PublisherCallback(RotationalStateToList(rotational_state))
+        minimal_publisher_4.PublisherCallback(RotationalStateToList(estimated_rotational_state))
         minimal_publisher_3.PublisherCallback(list(angular_velocity_body_frame))
 
         # # print(f"altitude: {altitude}, radial_velocity: {radial_velocity}, "
