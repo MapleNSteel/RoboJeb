@@ -54,7 +54,7 @@ class Vessel:
     
     def GetCOMRotation(self):
         rotation = self.vessel.rotation(self.orbiting_body.reference_frame)
-        rotation = np.array([rotation[3], rotation[0], rotation[1], rotation[2]])
+        rotation = np.quaternion(rotation[3], rotation[0], rotation[1], rotation[2])
         
         return rotation
 
@@ -62,7 +62,7 @@ class Vessel:
         return np.array(self.vessel.angular_velocity(self.orbiting_body.reference_frame)).reshape(3,)
     
     def GetCOMAngularVelocityBodyFrame(self):
-        rotation = np.quaternion(*self.GetCOMRotation())
+        rotation = self.GetCOMRotation()
         angular_velocity = np.array(self.GetCOMAngularVelocity())
 
         angular_velocity = rotation.conjugate() * np.quaternion(0, *angular_velocity) * rotation
