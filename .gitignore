@@ -4,3 +4,7 @@ __pycache__/
 
 # Ignore MacOS system files
 .DS_Store
+
+# Ignore Acados stuff
+acados*
+c_generated_code_

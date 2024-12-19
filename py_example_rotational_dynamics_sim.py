@@ -6,7 +6,7 @@ from std_msgs.msg import Float64MultiArray
 import time
 
 from Dynamics.Integrators import RK4
-from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamics, RotationalState, RotationalControl
+from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamics, RotationalDynamicsAcado, RotationalState, RotationalControl
 from KRPCInterface import KRPCInterface
 
 class MinimalPublisher(Node):
@@ -21,7 +21,7 @@ class MinimalPublisher(Node):
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
 def QuaternionToList(quat):
-    return [quat.w, quat.x, quat.y, quat.z]
+    return np.array([quat.w, quat.x, quat.y, quat.z])
 
 def RotationalStateToList(estimated_attitude):
     quat = estimated_attitude.quaternion
@@ -33,6 +33,8 @@ def main():
     minimal_publisher_2 = MinimalPublisher('attitude', 'attitude')
     minimal_publisher_3 = MinimalPublisher('angular_velocity', 'angular_velocity')
     minimal_publisher_4 = MinimalPublisher('estimated_attitude', 'estimated_anttitude')
+    minimal_publisher_5 = MinimalPublisher('estimated_angular_velocity', 'estimated_angular_velocity')
+    minimal_publisher_6 = MinimalPublisher('error_angular_velocity', 'error_angular_velocity')
     
     krpc_interface = KRPCInterface()
 
@@ -48,9 +50,11 @@ def main():
     initial_rotation_state = RotationalState(initial_inertia_tensor, initial_inertia_tensor_derivative, initial_attitude, initial_angular_velocity_body_frame)
     estimated_rotational_state = initial_rotation_state
 
-    minimal_publisher_2.PublisherCallback(RotationalStateToList(initial_rotation_state))
-    minimal_publisher_3.PublisherCallback(list(initial_angular_velocity_body_frame))
-    minimal_publisher_4.PublisherCallback(RotationalStateToList(estimated_rotational_state))
+    minimal_publisher_2.PublisherCallback(list(RotationalStateToList(initial_rotation_state)))
+    minimal_publisher_3.PublisherCallback(list(initial_rotation_state.angular_velocity))
+    minimal_publisher_4.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
+    minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity))
+    minimal_publisher_6.PublisherCallback(list(estimated_rotational_state.angular_velocity-initial_angular_velocity_body_frame))
 
     rotational_dynamics = RotationalDynamics(RK4.Integrate)
 
@@ -60,9 +64,11 @@ def main():
 
         current_time = time.time()
         dt = (current_time - start)
+
+        # print(dt)
         
-        inertia_tensor = active_vessel.GetInertiaTensor()
-        inertia_tensor_derivative = active_vessel.GetInertiaTensorDerivative()
+        inertia_tensor_body_frame = active_vessel.GetInertiaTensor()
+        inertia_tensor_derivative_body_frame = active_vessel.GetInertiaTensorDerivative()
         attitude = active_vessel.GetCOMRotation()
         angular_velocity_body_frame = active_vessel.GetCOMAngularVelocityBodyFrame()
 
@@ -70,14 +76,17 @@ def main():
 
         start = current_time
 
-        rotational_state = RotationalState(inertia_tensor, inertia_tensor_derivative, attitude, angular_velocity_body_frame)
+        rotational_state = RotationalState(inertia_tensor_body_frame, inertia_tensor_derivative_body_frame, attitude, angular_velocity_body_frame)
         rotational_control = RotationalControl(tau)
 
-        estimated_rotational_state = rotational_dynamics.Update(rotational_state, rotational_control, dt)
+        estimated_rotational_state = rotational_dynamics.Update(estimated_rotational_state, rotational_control, dt)
 
-        minimal_publisher_2.PublisherCallback(RotationalStateToList(rotational_state))
+        minimal_publisher_2.PublisherCallback(list(RotationalStateToList(rotational_state)))
         minimal_publisher_3.PublisherCallback(list(angular_velocity_body_frame))
-        minimal_publisher_4.PublisherCallback(RotationalStateToList(estimated_rotational_state))
+        minimal_publisher_4.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
+        minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity))
+        minimal_publisher_6.PublisherCallback(list(estimated_rotational_state.angular_velocity-angular_velocity_body_frame))
+
 
     minimal_publisher_2.destroy_node()
     minimal_publisher_3.destroy_node()
@@ -86,4 +95,5 @@ def main():
     rclpy.shutdown()
 
 if __name__ == "__main__":
+
     main()

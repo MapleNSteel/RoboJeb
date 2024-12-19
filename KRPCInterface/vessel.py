@@ -31,7 +31,7 @@ class Vessel:
         return self.vessel.moment_of_inertia
     
     def GetInertiaTensor(self):
-        inertia_tensor = np.array(self.vessel.inertia_tensor).reshape(3, 3)
+        inertia_tensor = np.diag(self.vessel.moment_of_inertia)
 
         return inertia_tensor
     
@@ -62,13 +62,14 @@ class Vessel:
         return np.array(self.vessel.angular_velocity(self.orbiting_body.reference_frame)).reshape(3,)
     
     def GetCOMAngularVelocityBodyFrame(self):
-        rotation = self.GetCOMRotation()
-        angular_velocity = np.array(self.GetCOMAngularVelocity())
+        angular_velocity = self.vessel.angular_velocity(self.vessel.orbit.body.non_rotating_reference_frame)
 
-        angular_velocity = rotation.conjugate() * np.quaternion(0, *angular_velocity) * rotation
-        angular_velocity = np.array([angular_velocity.x, angular_velocity.y, angular_velocity.z])
+        temp_quat = self.vessel.rotation(self.vessel.orbit.body.non_rotating_reference_frame)
+        temp_quat = np.quaternion(temp_quat[3], temp_quat[0], temp_quat[1], temp_quat[2])
 
-        return np.array(angular_velocity)
+        angular_velocity = temp_quat.conjugate() * np.quaternion(0, *angular_velocity) * temp_quat
+
+        return np.array([angular_velocity.x, angular_velocity.y, angular_velocity.z])
 
     # The following are states related to the structure and form of the aircraft
     def GetParts(self):

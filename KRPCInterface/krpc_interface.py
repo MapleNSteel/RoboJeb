@@ -12,6 +12,9 @@ class KRPCInterface:
 
         self.surface_gravity = self.active_vessel.GetOrbit().body.surface_gravity
 
+    def GetConnection(self):
+        return self.connection
+
     def GetSpaceCenter(self):
         return self.space_center
     
