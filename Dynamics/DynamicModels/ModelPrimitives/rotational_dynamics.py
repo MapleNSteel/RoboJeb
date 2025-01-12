@@ -11,6 +11,10 @@ class RotationalState(ModelState):
         self.inertia_tensor_derivative = inertia_tensor_derivative # This is not a differential state, assuming that the rocket is rigid; it's purely 'intermediate' given this operational constraint.
         self.quaternion = quaternion
         self.angular_velocity = angular_velocity
+
+    def ToList(self):
+        quat_list = np.array([self.quaternion.w, self.quaternion.x, self.quaternion.y, self.quaternion.z])
+        return np.concatenate((self.inertia_tensor.flatten(), self.inertia_tensor_derivative.flatten(), quat_list.flatten(), self.angular_velocity.flatten()))
     
     def __add__(self, other):
         return RotationalState(self.inertia_tensor+other.inertia_tensor, self.inertia_tensor_derivative+other.inertia_tensor_derivative, self.quaternion+other.quaternion, self.angular_velocity+other.angular_velocity)
@@ -24,6 +28,10 @@ class RotationalState(ModelState):
 class RotationalControl(ModelControl):
     def __init__(self, tau):
         self.tau = tau
+    
+    def ToList(self):
+        return self.tau.flatten()
+    
     
     def __add__(self, other):
         return RotationalControl(self.tau+other.tau)

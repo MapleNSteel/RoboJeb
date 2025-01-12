@@ -6,7 +6,7 @@ from std_msgs.msg import Float64MultiArray
 import time
 
 from Dynamics.Integrators import RK4, Euler
-from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamics, RotationalState, RotationalControl
+from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamicsAcado, RotationalState, RotationalControl
 from KRPCInterface import KRPCInterface
 
 class MinimalPublisher(Node):
@@ -30,11 +30,11 @@ def RotationalStateToList(estimated_attitude):
 def main():
     rclpy.init()
 
-    minimal_publisher_2 = MinimalPublisher('attitude', 'attitude')
-    minimal_publisher_3 = MinimalPublisher('angular_velocity', 'angular_velocity')
-    minimal_publisher_4 = MinimalPublisher('estimated_attitude', 'estimated_attitude')
-    minimal_publisher_5 = MinimalPublisher('estimated_angular_velocity', 'estimated_angular_velocity')
-    minimal_publisher_6 = MinimalPublisher('error_angular_velocity', 'error_angular_velocity')
+    minimal_publisher_1 = MinimalPublisher('attitude', 'attitude')
+    minimal_publisher_2 = MinimalPublisher('angular_velocity', 'angular_velocity')
+    minimal_publisher_3 = MinimalPublisher('estimated_attitude', 'estimated_attitude')
+    minimal_publisher_4 = MinimalPublisher('estimated_angular_velocity', 'estimated_angular_velocity')
+    minimal_publisher_5 = MinimalPublisher('error_angular_velocity', 'error_angular_velocity')
     
     krpc_interface = KRPCInterface()
 
@@ -50,13 +50,13 @@ def main():
     initial_rotation_state = RotationalState(initial_inertia_tensor, initial_inertia_tensor_derivative, initial_attitude, initial_angular_velocity_body_frame)
     estimated_rotational_state = initial_rotation_state
 
-    minimal_publisher_2.PublisherCallback(list(RotationalStateToList(initial_rotation_state)))
-    minimal_publisher_3.PublisherCallback(list(initial_rotation_state.angular_velocity))
-    minimal_publisher_4.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
-    minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity))
-    minimal_publisher_6.PublisherCallback(list(estimated_rotational_state.angular_velocity-initial_angular_velocity_body_frame))
+    minimal_publisher_1.PublisherCallback(list(RotationalStateToList(initial_rotation_state)))
+    minimal_publisher_2.PublisherCallback(list(initial_rotation_state.angular_velocity))
+    minimal_publisher_3.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
+    minimal_publisher_4.PublisherCallback(list(estimated_rotational_state.angular_velocity))
+    minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity-initial_angular_velocity_body_frame))
 
-    rotational_dynamics = RotationalDynamics(Euler.Integrate)
+    rotational_dynamics_acado = RotationalDynamicsAcado.GetIntegrator()
 
     angular_momentum = initial_inertia_tensor @ initial_angular_velocity_body_frame
 
@@ -94,20 +94,19 @@ def main():
         print(f"angular_velocity_body_frame: {angular_velocity_body_frame}")
 
         # estimated_rotational_state.angular_velocity = rotational_state.angular_velocity
-        estimated_rotational_state = rotational_dynamics.Update(estimated_rotational_state, rotational_control, dt)
+        estimated_rotational_state = RotationalDynamicsAcado.GetSimulatedRotationalState(rotational_dynamics_acado, estimated_rotational_state, rotational_control, dt)
 
-        minimal_publisher_2.PublisherCallback(list(RotationalStateToList(rotational_state)))
-        minimal_publisher_3.PublisherCallback(list(angular_velocity_body_frame))
-        minimal_publisher_4.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
-        minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity))
-        minimal_publisher_6.PublisherCallback(list(estimated_rotational_state.angular_velocity-angular_velocity_body_frame))
+        minimal_publisher_1.PublisherCallback(list(RotationalStateToList(rotational_state)))
+        minimal_publisher_2.PublisherCallback(list(angular_velocity_body_frame))
+        minimal_publisher_3.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
+        minimal_publisher_4.PublisherCallback(list(estimated_rotational_state.angular_velocity))
+        minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity-angular_velocity_body_frame))
 
-
+    minimal_publisher_1.destroy_node()
     minimal_publisher_2.destroy_node()
     minimal_publisher_3.destroy_node()
     minimal_publisher_4.destroy_node()
     minimal_publisher_5.destroy_node()
-    minimal_publisher_6.destroy_node()
 
 
     rclpy.shutdown()

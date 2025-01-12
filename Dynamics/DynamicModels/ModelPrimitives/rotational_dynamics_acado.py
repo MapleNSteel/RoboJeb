@@ -1,5 +1,9 @@
 from acados_template import AcadosModel, AcadosSim, AcadosSimSolver
-from casadi import SX, horzcat, vertcat
+from casadi import SX, horzcat, vertcat, inv
+import numpy as np
+import quaternion
+
+from Dynamics.DynamicModels.ModelPrimitives import RotationalState, RotationalControl
 
 def export_rotational_ode_model() -> AcadosModel:
 
@@ -42,7 +46,7 @@ def export_rotational_ode_model() -> AcadosModel:
 
     quaternion_derivative = 0.5 * omega_matrix @ quaternion
 
-    f_expl = vertcat(inertia_tensor_derivative.reshape((9, 1)), SX.zeros(3, 3).reshape((9, 1)) , quaternion_derivative, (tau - inertia_tensor_derivative @ angular_velocity - omega_skew @ inertia_tensor @ angular_velocity))
+    f_expl = vertcat(inertia_tensor_derivative.reshape((9, 1)), SX.zeros(3, 3).reshape((9, 1)) , quaternion_derivative, inv(inertia_tensor) @ (tau - inertia_tensor_derivative @ angular_velocity - omega_skew @ inertia_tensor @ angular_velocity))
     f_impl = xdot - f_expl
 
     model = AcadosModel()
@@ -69,18 +73,32 @@ def GetIntegrator():
 
     Tf = 0.1
     nx = sim.model.x.rows()
-    N_sim = 200
 
     # set simulation time
     sim.solver_options.T = Tf
     # set options
-    sim.solver_options.integrator_type = 'IRK'
-    sim.solver_options.num_stages = 3
-    sim.solver_options.num_steps = 3
-    sim.solver_options.newton_iter = 3 # for implicit integrator
-    sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
+    sim.solver_options.integrator_type = 'ERK'
+    # sim.solver_options.num_stages = 3
+    # sim.solver_options.num_steps = 3
+    # sim.solver_options.newton_iter = 3 # for implicit integrator
+    # sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
 
     # create
     acados_integrator = AcadosSimSolver(sim)
 
     return acados_integrator
+
+def GetSimulatedRotationalState(sim_solver: AcadosSimSolver, estimated_rotational_state: RotationalState, control: RotationalControl, dt):
+    
+    sim_solver.set("T", dt)
+    new_state = sim_solver.simulate(estimated_rotational_state.ToList(), control.ToList(), dt)
+
+    inertia_tensor, inertia_tensor_derivative, quat_list, angular_velocity = new_state[0:9], new_state[9:18], new_state[18:22], new_state[22:25]
+
+    inertia_tensor = inertia_tensor.reshape(3, 3)
+    inertia_tensor_derivative = inertia_tensor_derivative.reshape(3, 3)
+    quat = np.quaternion(quat_list[0], quat_list[1], quat_list[2], quat_list[3])
+
+    new_rotational_state = RotationalState(inertia_tensor=inertia_tensor, inertia_tensor_derivative=inertia_tensor_derivative, quaternion=quat, angular_velocity=angular_velocity)
+
+    return new_rotational_state

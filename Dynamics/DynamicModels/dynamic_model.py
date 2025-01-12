@@ -5,6 +5,10 @@ class ModelState(ABC):
         pass
 
     @abstractmethod
+    def ToList(self):
+        pass
+
+    @abstractmethod
     def __add__(self, other):
         pass
 
@@ -15,11 +19,16 @@ class ModelState(ABC):
     @abstractmethod
     def __rmul__(self, alpha):
         pass
+    
 
 class ModelControl(ABC):
     def __init__(self):
         pass
 
+    @abstractmethod
+    def ToList(self):
+        pass
+    
     @abstractmethod
     def __add__(self, other):
         pass
