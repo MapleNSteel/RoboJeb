@@ -62,9 +62,10 @@ class Vessel:
         return np.array(self.vessel.angular_velocity(self.orbiting_body.reference_frame)).reshape(3,)
     
     def GetCOMAngularVelocityBodyFrame(self):
-        angular_velocity = self.vessel.angular_velocity(self.vessel.orbit.body.non_rotating_reference_frame)
+        reference_frame = self.vessel.orbit.body.non_rotating_reference_frame
+        angular_velocity = self.vessel.angular_velocity(reference_frame)
 
-        temp_quat = self.vessel.rotation(self.vessel.orbit.body.non_rotating_reference_frame)
+        temp_quat = self.vessel.rotation(reference_frame)
         temp_quat = np.quaternion(temp_quat[3], temp_quat[0], temp_quat[1], temp_quat[2])
 
         angular_velocity = temp_quat.conjugate() * np.quaternion(0, *angular_velocity) * temp_quat

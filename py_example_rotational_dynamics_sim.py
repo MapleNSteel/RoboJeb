@@ -5,7 +5,7 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import time
 
-from Dynamics.Integrators import RK4
+from Dynamics.Integrators import RK4, Euler
 from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamics, RotationalDynamicsAcado, RotationalState, RotationalControl
 from KRPCInterface import KRPCInterface
 
@@ -32,7 +32,7 @@ def main():
 
     minimal_publisher_2 = MinimalPublisher('attitude', 'attitude')
     minimal_publisher_3 = MinimalPublisher('angular_velocity', 'angular_velocity')
-    minimal_publisher_4 = MinimalPublisher('estimated_attitude', 'estimated_anttitude')
+    minimal_publisher_4 = MinimalPublisher('estimated_attitude', 'estimated_attitude')
     minimal_publisher_5 = MinimalPublisher('estimated_angular_velocity', 'estimated_angular_velocity')
     minimal_publisher_6 = MinimalPublisher('error_angular_velocity', 'error_angular_velocity')
     
@@ -56,7 +56,9 @@ def main():
     minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity))
     minimal_publisher_6.PublisherCallback(list(estimated_rotational_state.angular_velocity-initial_angular_velocity_body_frame))
 
-    rotational_dynamics = RotationalDynamics(RK4.Integrate)
+    rotational_dynamics = RotationalDynamics(Euler.Integrate)
+
+    angular_momentum = initial_inertia_tensor @ initial_angular_velocity_body_frame
 
     while True:
         if active_vessel.GetAvailableThrust() == 0:
@@ -65,20 +67,33 @@ def main():
         current_time = time.time()
         dt = (current_time - start)
 
-        # print(dt)
+        if dt < 1/60.:
+            continue
+
+        print(dt)
         
         inertia_tensor_body_frame = active_vessel.GetInertiaTensor()
-        inertia_tensor_derivative_body_frame = active_vessel.GetInertiaTensorDerivative()
+        # inertia_tensor_derivative_body_frame = active_vessel.GetInertiaTensorDerivative()
+        inertia_tensor_derivative_body_frame = inertia_tensor_body_frame*0
         attitude = active_vessel.GetCOMRotation()
         angular_velocity_body_frame = active_vessel.GetCOMAngularVelocityBodyFrame()
 
         tau = np.zeros(np.shape(angular_velocity_body_frame))
+
+        print(f"inertia_tensor_body_frame @ angular_velocity_body_frame: {inertia_tensor_body_frame @ angular_velocity_body_frame}")
+        estimated_tau = (inertia_tensor_body_frame @ angular_velocity_body_frame - angular_momentum)/dt
+        print(f"angular_momentum: {angular_momentum}")
+        print(f"estimated_tau: {estimated_tau}")
+        angular_momentum = inertia_tensor_body_frame @ angular_velocity_body_frame
 
         start = current_time
 
         rotational_state = RotationalState(inertia_tensor_body_frame, inertia_tensor_derivative_body_frame, attitude, angular_velocity_body_frame)
         rotational_control = RotationalControl(tau)
 
+        print(f"angular_velocity_body_frame: {angular_velocity_body_frame}")
+
+        # estimated_rotational_state.angular_velocity = rotational_state.angular_velocity
         estimated_rotational_state = rotational_dynamics.Update(estimated_rotational_state, rotational_control, dt)
 
         minimal_publisher_2.PublisherCallback(list(RotationalStateToList(rotational_state)))
@@ -91,6 +106,9 @@ def main():
     minimal_publisher_2.destroy_node()
     minimal_publisher_3.destroy_node()
     minimal_publisher_4.destroy_node()
+    minimal_publisher_5.destroy_node()
+    minimal_publisher_6.destroy_node()
+
 
     rclpy.shutdown()
 

@@ -40,13 +40,13 @@ class RotationalDynamics(DynamicModel):
         super().__init__(integrator)
         self.quaternion_dynamics = QuaternionDynamics(integrator)
 
-    def Derivative(self, state: RotationalState, control: RotationalControl) -> RotationalState:
+    def Derivative(self, rotational_state: RotationalState, rotational_control: RotationalControl) -> RotationalState:
         angular_momentum = lambda inertia_tensor, angular_velocity: inertia_tensor @ angular_velocity
         angular_acceleration = lambda state, control: np.linalg.inv(state.inertia_tensor) @ (control.tau - state.inertia_tensor_derivative @ state.angular_velocity - np.cross(state.angular_velocity, angular_momentum(state.inertia_tensor, state.angular_velocity)))
 
         rotational_derivative = lambda state, control: RotationalState(state.inertia_tensor_derivative, np.zeros(np.shape(state.inertia_tensor_derivative)), self.quaternion_dynamics.Derivative(state.quaternion, state.angular_velocity, None), angular_acceleration(state, control))
 
-        return rotational_derivative(state, control)
+        return rotational_derivative(rotational_state, rotational_control)
 
     def Update(self, state: RotationalState, control: RotationalControl, dt) -> RotationalState:
         rotational_derivative = lambda state, control: self.Derivative(state, control)
