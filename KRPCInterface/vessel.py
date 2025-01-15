@@ -71,6 +71,9 @@ class Vessel:
         angular_velocity = temp_quat.conjugate() * np.quaternion(0, *angular_velocity) * temp_quat
 
         return np.array([angular_velocity.x, angular_velocity.y, angular_velocity.z])
+    
+    def GetAttitudeControlState(self):
+        return np.array([self.vessel.control.roll, self.vessel.control.pitch, self.vessel.control.yaw])
 
     # The following are states related to the structure and form of the aircraft
     def GetParts(self):
@@ -127,10 +130,10 @@ class Vessel:
     def SetThrottleControl(self, throttle_command):
         self.vessel.control.throttle = throttle_command
 
-    def SetAttitudeControl(self, attitude):
-        self.vessel.control.roll = attitude[0]
-        self.vessel.control.pitch = attitude[1]
-        self.vessel.control.yaw = attitude[2]
+    def SetAttitudeControl(self, torque):
+        self.vessel.control.roll = torque[0]
+        self.vessel.control.pitch = torque[1]
+        self.vessel.control.yaw = torque[2]
 
     def _is_active_fuel_part(self, resource_name, resources, active_engines):
         """Helper function to check if a resource is used by an active engine and has a non-zero amount."""

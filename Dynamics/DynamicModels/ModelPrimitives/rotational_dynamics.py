@@ -32,7 +32,6 @@ class RotationalControl(ModelControl):
     def ToList(self):
         return self.tau.flatten()
     
-    
     def __add__(self, other):
         return RotationalControl(self.tau+other.tau)
         

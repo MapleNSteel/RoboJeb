@@ -55,7 +55,10 @@ def main():
         if active_vessel.GetAvailableThrust() == 0:
             break
 
-        altitude, radial_velocity, altitude_error, altitude_speed_error, throttle_command = hover_pid_controller.GetControlInput()
+        surface_altitude = active_vessel.GetCOMSurfaceAltitude()
+        radial_velocity = active_vessel.GetRadialVelocity()
+
+        altitude_error, altitude_speed_error, throttle_command = hover_pid_controller.GetControlInput(surface_altitude, radial_velocity)
         active_vessel.SetThrottleControl(throttle_command)
         
         current_time = time.time()
@@ -67,7 +70,7 @@ def main():
 
         print(f"burn time: {active_vessel.GetBurnTime()}")
 
-        minimal_publisher_1.PublisherCallback([altitude, radial_velocity, altitude_error, altitude_speed_error, throttle_command])
+        minimal_publisher_1.PublisherCallback([surface_altitude, radial_velocity, altitude_error, altitude_speed_error, throttle_command])
 
     minimal_publisher_1.destroy_node()
 

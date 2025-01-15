@@ -12,10 +12,7 @@ class HoverPIDController:
         self.start = time.time()
         self.error_integral = 0
     
-    def GetControlInput(self):
-        surface_altitude = self.krpc_interface.GetActiveVessel().GetCOMSurfaceAltitude()
-        radial_velocity = self.krpc_interface.GetActiveVessel().GetRadialVelocity()
-
+    def GetControlInput(self, surface_altitude, radial_velocity):
         altitude_error = surface_altitude-self.target_surface_altitude
         altitude_speed_error = radial_velocity-0.
 

@@ -5,6 +5,7 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import time
 
+from Controllers.TumbleStabiliser import TumbleStabiliser
 from Dynamics.DynamicModels.ModelPrimitives import RotationalDynamicsAcado, RotationalState, RotationalControl
 from KRPCInterface import KRPCInterface
 
@@ -31,9 +32,7 @@ def main():
 
     minimal_publisher_1 = MinimalPublisher('attitude', 'attitude')
     minimal_publisher_2 = MinimalPublisher('angular_velocity', 'angular_velocity')
-    minimal_publisher_3 = MinimalPublisher('estimated_attitude', 'estimated_attitude')
-    minimal_publisher_4 = MinimalPublisher('estimated_angular_velocity', 'estimated_angular_velocity')
-    minimal_publisher_5 = MinimalPublisher('error_angular_velocity', 'error_angular_velocity')
+    minimal_publisher_3 = MinimalPublisher('torque', 'torque')
     
     krpc_interface = KRPCInterface()
 
@@ -47,17 +46,18 @@ def main():
     initial_angular_velocity_body_frame = active_vessel.GetCOMAngularVelocityBodyFrame()
 
     initial_rotation_state = RotationalState(initial_inertia_tensor, initial_inertia_tensor_derivative, initial_attitude, initial_angular_velocity_body_frame)
-    estimated_rotational_state = initial_rotation_state
 
     minimal_publisher_1.PublisherCallback(list(RotationalStateToList(initial_rotation_state)))
     minimal_publisher_2.PublisherCallback(list(initial_rotation_state.angular_velocity))
-    minimal_publisher_3.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
-    minimal_publisher_4.PublisherCallback(list(estimated_rotational_state.angular_velocity))
-    minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity-initial_angular_velocity_body_frame))
-
-    rotational_dynamics_acado = RotationalDynamicsAcado.GetIntegrator()
 
     angular_momentum = initial_inertia_tensor @ initial_angular_velocity_body_frame
+    
+    tau_limits = active_vessel.GetAvailableTorque()
+    N_horizon = 40 
+    Tf = 20
+    RTI = True
+
+    tumble_stabiliser = TumbleStabiliser(initial_rotation_state.ToList(), tau_limits, N_horizon, Tf, RTI)
 
     while True:
         if active_vessel.GetAvailableThrust() == 0:
@@ -77,36 +77,38 @@ def main():
         attitude = active_vessel.GetCOMRotation()
         angular_velocity_body_frame = active_vessel.GetCOMAngularVelocityBodyFrame()
 
-        tau = np.zeros(np.shape(angular_velocity_body_frame))
-
-        print(f"inertia_tensor_body_frame @ angular_velocity_body_frame: {inertia_tensor_body_frame @ angular_velocity_body_frame}")
+        # print(f"inertia_tensor_body_frame @ angular_velocity_body_frame: {inertia_tensor_body_frame @ angular_velocity_body_frame}")
         estimated_tau = (inertia_tensor_body_frame @ angular_velocity_body_frame - angular_momentum)/dt
-        print(f"angular_momentum: {angular_momentum}")
+        # print(f"angular_momentum: {angular_momentum}")
         print(f"estimated_tau: {estimated_tau}")
         angular_momentum = inertia_tensor_body_frame @ angular_velocity_body_frame
 
         start = current_time
 
         rotational_state = RotationalState(inertia_tensor_body_frame, inertia_tensor_derivative_body_frame, attitude, angular_velocity_body_frame)
-        rotational_control = RotationalControl(tau)
+        rotational_control = tumble_stabiliser.GetControlInput(rotational_state.ToList())
 
-        print(f"angular_velocity_body_frame: {angular_velocity_body_frame}")
+        print(tau_limits)
 
-        # estimated_rotational_state.angular_velocity = rotational_state.angular_velocity
-        estimated_rotational_state = RotationalDynamicsAcado.GetSimulatedRotationalState(rotational_dynamics_acado, estimated_rotational_state, rotational_control, dt)
+        tau = rotational_control.tau
+        control = np.array((2*tau-(np.array(tau_limits[0])+np.array(tau_limits[1])))/(np.array(tau_limits[0])-np.array(tau_limits[1])))
+        control[0], control[1], control[2] = -control[1], -control[0], -control[2]
+
+        print(tau)
+        print(control)
+        active_vessel.SetAttitudeControl(control)
+
+        time.sleep(1/60.)
+
+        print(f"angular_velocity_body_frame: {angular_velocity_body_frame}\n")
 
         minimal_publisher_1.PublisherCallback(list(RotationalStateToList(rotational_state)))
         minimal_publisher_2.PublisherCallback(list(angular_velocity_body_frame))
-        minimal_publisher_3.PublisherCallback(list(RotationalStateToList(estimated_rotational_state)))
-        minimal_publisher_4.PublisherCallback(list(estimated_rotational_state.angular_velocity))
-        minimal_publisher_5.PublisherCallback(list(estimated_rotational_state.angular_velocity-angular_velocity_body_frame))
+        minimal_publisher_3.PublisherCallback(list(control))
 
     minimal_publisher_1.destroy_node()
     minimal_publisher_2.destroy_node()
     minimal_publisher_3.destroy_node()
-    minimal_publisher_4.destroy_node()
-    minimal_publisher_5.destroy_node()
-
 
     rclpy.shutdown()
 
