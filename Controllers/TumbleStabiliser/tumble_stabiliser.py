@@ -13,7 +13,9 @@ class TumbleStabiliser:
         model = RotationalDynamicsAcado.export_rotational_ode_model()
         ocp.model = model
 
-        nx = model.x.rows()
+        angular_velocity = model.x[22:]
+
+        nx = angular_velocity.rows()
         nu = model.u.rows()
         ny = nx + nu
         ny_e = nx
@@ -23,14 +25,14 @@ class TumbleStabiliser:
         ocp.cost.cost_type = 'NONLINEAR_LS'
         ocp.cost.cost_type_e = 'NONLINEAR_LS'
 
-        Q_mat = 2*np.diag([0] * 22 + [1e5, 1e5, 1e5])
+        Q_mat = 2*np.diag([1e6, 1e6, 1e6])
         R_mat = 2*np.diag([1e-7, 1e-7, 1e-7])
 
         ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
         ocp.cost.W_e = Q_mat
 
-        ocp.model.cost_y_expr = vertcat(model.x, model.u)
-        ocp.model.cost_y_expr_e = model.x
+        ocp.model.cost_y_expr = vertcat(angular_velocity, model.u)
+        ocp.model.cost_y_expr_e = angular_velocity
         ocp.cost.yref  = np.zeros((ny, ))
         ocp.cost.yref_e = np.zeros((ny_e, ))
 
