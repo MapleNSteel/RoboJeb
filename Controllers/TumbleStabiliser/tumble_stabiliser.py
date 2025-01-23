@@ -25,8 +25,8 @@ class TumbleStabiliser:
         ocp.cost.cost_type = 'NONLINEAR_LS'
         ocp.cost.cost_type_e = 'NONLINEAR_LS'
 
-        Q_mat = 2*np.diag([1e6, 1e6, 1e6])
-        R_mat = 2*np.diag([1e-7, 1e-7, 1e-7])
+        Q_mat = 2*np.diag([1e1, 1e1, 1e1])
+        R_mat = 2*np.diag([1e-2, 1e-2, 1e-2])
 
         ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
         ocp.cost.W_e = Q_mat
@@ -39,11 +39,14 @@ class TumbleStabiliser:
         self.tau_limits = tau_limits
 
         # set constraints
-        ocp.constraints.lbu = np.array(tau_limits[1])
-        ocp.constraints.ubu = np.array(tau_limits[0])
+        ocp.constraints.lbu = np.array([-1., -1., -1.])
+        ocp.constraints.ubu = np.array([+1., +1., +1.])
         ocp.constraints.idxbu = np.arange(nu)
 
         ocp.constraints.x0 = x0
+
+        # set parameters
+        ocp.parameter_values = np.array(tau_limits).reshape(-1, 1)
 
         # set prediction horizon
         ocp.solver_options.N_horizon = N_horizon
@@ -67,6 +70,11 @@ class TumbleStabiliser:
 
         solver_json = 'acados_ocp_' + model.name + '.json'
         self.acados_ocp_solver = AcadosOcpSolver(ocp, json_file = solver_json)
+
+        # set parameter values
+        for i in range(self.acados_ocp_solver.N + 1):  # N is the number of shooting intervals
+            print(np.array(tau_limits).reshape(-1, 1))
+            self.acados_ocp_solver.set(i, "p", np.array(tau_limits).reshape(-1, 1))    
 
         # do some initial iterations to start with a good initial guess
         num_iter_initial = 5

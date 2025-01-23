@@ -91,7 +91,8 @@ def main():
         print(tau_limits)
 
         tau = rotational_control.tau
-        control = np.array((2*tau-(np.array(tau_limits[0])+np.array(tau_limits[1])))/(np.array(tau_limits[0])-np.array(tau_limits[1])))
+        # control = np.array((2*tau-(np.array(tau_limits[0])+np.array(tau_limits[1])))/(np.array(tau_limits[0])-np.array(tau_limits[1])))
+        control = tau
         control[0], control[1], control[2] = -control[1], -control[0], -control[2] # vessel coordinates are in left-hand coordinate system, but control frame is in orbital frame, which is right-hand (may only be in case of space)
 
         print(tau)

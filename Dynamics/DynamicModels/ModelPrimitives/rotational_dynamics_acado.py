@@ -15,10 +15,14 @@ def export_rotational_ode_model() -> AcadosModel:
     quaternion = SX.sym('quaternion', 4, 1)
     angular_velocity = SX.sym('angular_velocity', 3, 1)
 
+    torque_limits = SX.sym('torque_limits', 3, 2)
+
     x = vertcat(inertia_tensor.reshape((9, 1)), inertia_tensor_derivative.reshape((9, 1)), quaternion, angular_velocity)
 
-    tau = SX.sym('tau', 3, 1)
-    u = vertcat(tau)
+    torque_control = SX.sym('u', 3, 1)
+    u = vertcat(torque_control)
+    
+    tau = 0.5*((torque_limits[:, 0]+torque_limits[:, 1]) + ((torque_limits[:, 0]-torque_limits[:, 1]) * torque_control))
 
     # xdot
     inertia_tensor_dot = SX.sym('inertia_tensor_dot', 9 , 1)
@@ -56,6 +60,7 @@ def export_rotational_ode_model() -> AcadosModel:
     model.x = x
     model.xdot = xdot
     model.u = u
+    model.p = torque_limits
     model.name = model_name
 
     # store meta information
